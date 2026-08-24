@@ -1,0 +1,6 @@
+packages:
+  - shared
+  - verifier
+  - judge
+allowBuilds:
+  better-sqlite3: true

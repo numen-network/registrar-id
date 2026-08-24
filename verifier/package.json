@@ -1,0 +1,13 @@
+{
+  "name": "@numen-id/verifier",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.0",
+    "@numen-id/shared": "workspace:*",
+    "hono": "^4.13.2"
+  }
+}
