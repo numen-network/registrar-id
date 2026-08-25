@@ -113,7 +113,9 @@ export class Chain {
 
     const pair = new Keyring({ type: 'sr25519' }).addFromUri(suri)
     const chain = new Chain(api, pair, await Chain.ownIndex(api, pair))
-    await chain.declare()
+    await chain.declare().catch((cause: unknown) => {
+      console.error('the declaration did not land, judging anyway', cause)
+    })
     return chain
   }
 
@@ -131,8 +133,7 @@ export class Chain {
 
   /**
    * Judging with a key the chain does not know as a registrar helps nobody, so
-   * the slot is found by this key rather than told by anyone, the same way the
-   * wallet finds it by the declaration.
+   * the slot is found by this key rather than told by anyone.
    */
   private static async ownIndex(api: ApiPromise, pair: KeyringPair): Promise<number> {
     const queries = api.query as unknown as Queries
@@ -145,7 +146,7 @@ export class Chain {
     return index
   }
 
-  /** The declaration is discovery and policy in one, so it has to be up. */
+  /** A note on chain for whoever reads the registrar list. */
   private async declare(): Promise<void> {
     const registrars = (await this.queries.identity.registrars()) as OptionLike<RegistrarLike>[]
     const entry = registrars[this.regIndex]
