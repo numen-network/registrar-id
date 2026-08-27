@@ -27,3 +27,57 @@ pnpm test
 node --env-file=verifier/.env verifier/dist/main.js
 node --env-file=judge/.env judge/dist/main.js
 ```
+
+`better-sqlite3` compiles from source whenever no prebuild matches the Node version, so the host needs a C++ toolchain.
+
+The chain has to know that key as a registrar before any of this runs. Until an `add_registrar` puts it there, the judge exits at startup with `the chain does not know this key as a registrar`.
+
+### Run it as a service
+
+numen-id-verifier.service
+
+```ini
+[Unit]
+Description=Numen id verifier
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+WorkingDirectory=/opt/registrar-id
+ExecStart=/usr/bin/node --env-file=/opt/registrar-id/verifier.env /opt/registrar-id/verifier/dist/main.js
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+```
+
+numen-id-judge.service
+
+```ini
+[Unit]
+Description=Numen id judge
+After=network-online.target numen.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+WorkingDirectory=/opt/registrar-id
+ExecStart=/usr/bin/node --env-file=/opt/registrar-id/judge.env /opt/registrar-id/judge/dist/main.js
+Restart=always
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target
+```
+
+## Updating
+
+```bash
+git pull && pnpm install --frozen-lockfile && pnpm build
+```
+
+Restart both services afterwards. Anything under `shared/` reaches both of them, so restarting one leaves the other on old code. The judge resumes from its cursor and loses nothing.
+
+A newly required variable announces itself at startup as `missing NAME in the environment`.
