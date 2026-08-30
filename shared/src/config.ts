@@ -15,15 +15,21 @@ export const isChannel = (value: string): value is Channel =>
   (CHANNELS as readonly string[]).includes(value)
 
 /**
+ * What an account writes about itself. Nobody can prove any of it, so the
+ * judgement policy lets it through unchecked.
+ */
+export const PROFILE = ['display', 'avatar', 'about'] as const
+
+/**
  * numen_runtime identity_info field order, which is also the bit order of a
  * registrar's set_fields declaration.
  */
 export const IDENTITY_FIELDS = [
-  'display',
+  ...PROFILE,
   'web',
   'email',
-  'matrix',
   'github',
+  'matrix',
   'x',
   'telegram',
   'discord',

@@ -1,19 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { UNIT } from '@numen-id/shared'
-import { decide, type Field, type Open } from './decide.js'
+import { decide, type Open } from './decide.js'
 
-const none: Field = { kind: 'none', text: '' }
-const raw = (text: string): Field => ({ kind: 'raw', text })
-
-const record = (over: Record<string, Field> = {}): Record<string, Field> => ({
-  display: raw('Alice'),
-  web: none,
-  email: none,
-  matrix: none,
-  github: none,
-  x: none,
-  telegram: none,
-  discord: none,
+const record = (over: Record<string, string> = {}): Record<string, string> => ({
+  display: 'Alice',
+  avatar: '',
+  about: '',
+  web: '',
+  email: '',
+  github: '',
+  matrix: '',
+  x: '',
+  telegram: '',
+  discord: '',
   ...over,
 })
 
@@ -25,7 +24,7 @@ const PRICE = 10n * UNIT
 describe('decide', () => {
   it('judges one paid channel and spends its sign in', () => {
     const verdict = decide(
-      record({ telegram: raw('alice') }),
+      record({ telegram: 'alice' }),
       [open(1, 'telegram', 'alice')],
       {},
       DECLARED,
@@ -37,7 +36,7 @@ describe('decide', () => {
 
   it('judges both channels when the transfer covers both', () => {
     const verdict = decide(
-      record({ telegram: raw('alice'), discord: raw('alice_dc') }),
+      record({ telegram: 'alice', discord: 'alice_dc' }),
       [open(1, 'telegram', 'alice'), open(2, 'discord', 'alice_dc')],
       {},
       DECLARED,
@@ -49,7 +48,7 @@ describe('decide', () => {
 
   it('refuses two channels paid as one', () => {
     const verdict = decide(
-      record({ telegram: raw('alice'), discord: raw('alice_dc') }),
+      record({ telegram: 'alice', discord: 'alice_dc' }),
       [open(1, 'telegram', 'alice'), open(2, 'discord', 'alice_dc')],
       {},
       DECLARED,
@@ -61,7 +60,7 @@ describe('decide', () => {
 
   it('refuses a record that paid nothing', () => {
     const verdict = decide(
-      record({ telegram: raw('alice') }),
+      record({ telegram: 'alice' }),
       [open(1, 'telegram', 'alice')],
       {},
       DECLARED,
@@ -73,7 +72,7 @@ describe('decide', () => {
 
   it('takes an overpayment without complaint', () => {
     const verdict = decide(
-      record({ telegram: raw('alice') }),
+      record({ telegram: 'alice' }),
       [open(1, 'telegram', 'alice')],
       {},
       DECLARED,
@@ -84,13 +83,13 @@ describe('decide', () => {
   })
 
   it('refuses a channel nobody signed in for', () => {
-    const verdict = decide(record({ telegram: raw('alice') }), [], {}, DECLARED, PRICE, PRICE)
+    const verdict = decide(record({ telegram: 'alice' }), [], {}, DECLARED, PRICE, PRICE)
     expect(verdict).toMatchObject({ judge: false, why: 'no sign in stands behind telegram' })
   })
 
   it('refuses a handle that does not match the login', () => {
     const verdict = decide(
-      record({ telegram: raw('somebody_else') }),
+      record({ telegram: 'somebody_else' }),
       [open(1, 'telegram', 'alice')],
       {},
       DECLARED,
@@ -102,7 +101,7 @@ describe('decide', () => {
 
   it('refuses a filled field outside the declaration', () => {
     const verdict = decide(
-      record({ telegram: raw('alice'), email: raw('alice@example.com') }),
+      record({ telegram: 'alice', email: 'alice@example.com' }),
       [open(1, 'telegram', 'alice')],
       {},
       DECLARED,
@@ -114,7 +113,7 @@ describe('decide', () => {
 
   it('refuses x while the declaration leaves it out', () => {
     const verdict = decide(
-      record({ telegram: raw('alice'), x: raw('@alice') }),
+      record({ telegram: 'alice', x: '@alice' }),
       [open(1, 'telegram', 'alice')],
       {},
       DECLARED,
@@ -128,7 +127,7 @@ describe('decide', () => {
   // with no code change here
   it('follows the declaration when it widens', () => {
     const verdict = decide(
-      record({ x: raw('@alice') }),
+      record({ x: '@alice' }),
       [open(1, 'x', '@alice')],
       {},
       ['x', 'telegram', 'discord'],
@@ -138,16 +137,34 @@ describe('decide', () => {
     expect(verdict).toEqual({ judge: true, spend: [1] })
   })
 
-  it('refuses a field holding a hash instead of text', () => {
+  it('takes a profile nobody can prove', () => {
     const verdict = decide(
-      record({ telegram: { kind: 'other', text: '' } }),
+      record({
+        telegram: 'alice',
+        avatar: 'https://example.com/alice.png',
+        about: 'Runs a validator.',
+      }),
       [open(1, 'telegram', 'alice')],
       {},
       DECLARED,
       PRICE,
       PRICE,
     )
-    expect(verdict).toMatchObject({ judge: false, why: expect.stringContaining('telegram') })
+    expect(verdict).toEqual({ judge: true, spend: [1] })
+  })
+
+  it('refuses a record that goes by no name', () => {
+    for (const display of ['', '   ', '\u200b']) {
+      const verdict = decide(
+        record({ display, telegram: 'alice' }),
+        [open(1, 'telegram', 'alice')],
+        {},
+        DECLARED,
+        PRICE,
+        PRICE,
+      )
+      expect(verdict).toMatchObject({ judge: false, why: 'the record goes by no name' })
+    }
   })
 
   it('refuses a record with no channel at all', () => {
@@ -157,7 +174,7 @@ describe('decide', () => {
 
   it('spends only what the record wears', () => {
     const verdict = decide(
-      record({ discord: raw('alice_dc') }),
+      record({ discord: 'alice_dc' }),
       [open(1, 'telegram', 'alice'), open(2, 'discord', 'alice_dc')],
       {},
       DECLARED,
@@ -169,7 +186,7 @@ describe('decide', () => {
 
   it('inherits a channel it already stood behind, free of charge', () => {
     const verdict = decide(
-      record({ telegram: raw('alice') }),
+      record({ telegram: 'alice' }),
       [],
       { telegram: 'alice' },
       DECLARED,
@@ -181,7 +198,7 @@ describe('decide', () => {
 
   it('charges only the fresh channel beside an inherited one', () => {
     const verdict = decide(
-      record({ telegram: raw('alice'), discord: raw('alice_dc') }),
+      record({ telegram: 'alice', discord: 'alice_dc' }),
       [open(1, 'discord', 'alice_dc')],
       { telegram: 'alice' },
       DECLARED,
@@ -193,7 +210,7 @@ describe('decide', () => {
 
   it('treats a moved handle as fresh again', () => {
     const stale = decide(
-      record({ telegram: raw('renamed') }),
+      record({ telegram: 'renamed' }),
       [],
       { telegram: 'alice' },
       DECLARED,
@@ -203,7 +220,7 @@ describe('decide', () => {
     expect(stale).toMatchObject({ judge: false, why: 'no sign in stands behind telegram' })
 
     const proven = decide(
-      record({ telegram: raw('renamed') }),
+      record({ telegram: 'renamed' }),
       [open(1, 'telegram', 'renamed')],
       { telegram: 'alice' },
       DECLARED,
@@ -215,7 +232,7 @@ describe('decide', () => {
 
   it('prefers inheriting over spending when both stand', () => {
     const verdict = decide(
-      record({ telegram: raw('alice') }),
+      record({ telegram: 'alice' }),
       [open(1, 'telegram', 'alice')],
       { telegram: 'alice' },
       DECLARED,
@@ -227,7 +244,7 @@ describe('decide', () => {
 
   it('inheritance stands in for a sign in, not for cleanliness', () => {
     const verdict = decide(
-      record({ telegram: raw('alice'), email: raw('alice@example.com') }),
+      record({ telegram: 'alice', email: 'alice@example.com' }),
       [],
       { telegram: 'alice' },
       DECLARED,

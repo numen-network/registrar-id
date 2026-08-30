@@ -3,10 +3,9 @@ import type { KeyringPair } from '@polkadot/keyring/types'
 import { u8aToHex, u8aToString } from '@polkadot/util'
 import { cryptoWaitReady, encodeAddress } from '@polkadot/util-crypto'
 import { declaredFields, SS58_PREFIX } from '@numen-id/shared'
-import type { Field } from './decide.js'
 
 export interface OnChainIdentity {
-  fields: Record<string, Field>
+  fields: Record<string, string>
   hash: string
   /** Registrar indexes standing behind this record with a checked judgement. */
   checkedBy: number[]
@@ -70,10 +69,8 @@ interface CodecLike {
   toU8a(): Uint8Array
 }
 
-interface DataLike {
-  isNone?: boolean
-  isRaw?: boolean
-  asRaw?: Uint8Array
+interface TextLike {
+  toU8a(bare?: boolean): Uint8Array
 }
 
 interface EventRecordLike {
@@ -88,11 +85,11 @@ interface RegistrarLike {
 
 /**
  * IdentityField bits as numen_runtime's identity_info orders them, telegram at
- * six and discord at seven. Declaring them on chain is how the wallet finds
+ * eight and discord at nine. Declaring them on chain is how the wallet finds
  * this registrar and what the judgement policy accepts as provable, there is no
  * other marking anywhere.
  */
-const FIELDS = (1n << 6n) | (1n << 7n)
+const FIELDS = (1n << 8n) | (1n << 9n)
 
 export class Chain {
   /** What the declaration says this registrar checks, which decide() enforces. */
@@ -215,20 +212,15 @@ export class Chain {
   async identityAt(blockHash: string, who: string): Promise<OnChainIdentity | null> {
     const at = await this.queriesAt(blockHash)
     const entry = (await at.identity.identityOf(who)) as OptionLike<{
-      info: CodecLike & Iterable<[string, DataLike]>
+      info: CodecLike & Iterable<[string, TextLike]>
       judgements: Iterable<[{ toNumber(): number }, { type: string }]>
     }>
     if (!entry.isSome) return null
 
     const { info, judgements } = entry.unwrap()
-    const fields: Record<string, Field> = {}
+    const fields: Record<string, string> = {}
     for (const [name, value] of info) {
-      fields[name] =
-        value.isNone === true
-          ? { kind: 'none', text: '' }
-          : value.isRaw === true && value.asRaw
-            ? { kind: 'raw', text: u8aToString(value.asRaw) }
-            : { kind: 'other', text: '' }
+      fields[name] = u8aToString(value.toU8a(true))
     }
 
     const checkedBy: number[] = []

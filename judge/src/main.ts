@@ -31,8 +31,8 @@ async function judgeBlock(height: number): Promise<void> {
     const inherited: Record<string, string> = {}
     if (parent?.checkedBy.includes(chain.index)) {
       for (const channel of chain.declared) {
-        const field = parent.fields[channel]
-        if (field?.kind === 'raw') inherited[channel] = field.text
+        const handle = parent.fields[channel]
+        if (handle) inherited[channel] = handle
       }
     }
 
