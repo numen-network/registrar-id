@@ -1,6 +1,6 @@
 import { ApiPromise, Keyring, WsProvider } from '@polkadot/api'
 import type { KeyringPair } from '@polkadot/keyring/types'
-import { u8aToHex, u8aToString } from '@polkadot/util'
+import { stringToU8a, u8aToHex, u8aToString } from '@polkadot/util'
 import { cryptoWaitReady, encodeAddress } from '@polkadot/util-crypto'
 import { SS58_PREFIX } from '@numen-id/shared'
 import type { Stamp } from './decide.js'
@@ -14,16 +14,20 @@ export interface OnChainIdentity {
   askedBy: number[]
 }
 
-/** One identity written in a block, beside what its extrinsic paid this registrar. */
+/** One identity written in a block, beside what its extrinsic paid the treasury. */
 export interface SetIdentity {
   who: string
   paid: bigint
 }
 
 /**
- * The api's query and tx roots are index signatures, so everything crossing the
- * polkadot-js boundary is named here once and cast at the edge.
+ * The api's const, query and tx roots are index signatures, so everything
+ * crossing the polkadot-js boundary is named here once and cast at the edge.
  */
+interface Consts {
+  treasury: { palletId: CodecLike }
+}
+
 interface Queries {
   system: { events(): Promise<unknown> }
   identity: {
@@ -89,6 +93,7 @@ export class Chain {
     private api: ApiPromise,
     private pair: KeyringPair,
     private regIndex: number,
+    private treasuryKey: string,
   ) {}
 
   static async connect(rpc: string, suri: string): Promise<Chain> {
@@ -99,7 +104,21 @@ export class Chain {
     }
 
     const pair = new Keyring({ type: 'sr25519' }).addFromUri(suri)
-    return new Chain(api, pair, await Chain.ownIndex(api, pair))
+    return new Chain(api, pair, await Chain.ownIndex(api, pair), Chain.treasuryKey(api))
+  }
+
+  /**
+   * The account the check fee is paid into, which frame derives by writing the
+   * type tag, the pallet id and trailing zeros into the 32 bytes an address
+   * takes. Reading it off the chain leaves one answer. A configured address
+   * would be a second one to get wrong.
+   */
+  private static treasuryKey(api: ApiPromise): string {
+    const consts = api.consts as unknown as Consts
+    const raw = new Uint8Array(32)
+    raw.set(stringToU8a('modl'))
+    raw.set(consts.treasury.palletId.toU8a(), 4)
+    return u8aToHex(raw)
   }
 
   private get queries(): Queries {
@@ -144,9 +163,9 @@ export class Chain {
 
   /**
    * Who set an identity in this block, beside what the same extrinsic moved to
-   * this registrar's account. Same extrinsic is the whole binding, a transfer
-   * anywhere else pays for nothing. The parent hash comes off this very header,
-   * so what stood before the write is read from the same fork.
+   * the treasury. Same extrinsic is the whole binding, a transfer anywhere else
+   * pays for nothing. The parent hash comes off this very header, so what stood
+   * before the write is read from the same fork.
    */
   async setsIn(
     height: number,
@@ -168,7 +187,7 @@ export class Chain {
       if (
         event.section === 'balances' &&
         event.method === 'Transfer' &&
-        u8aToHex((event.data[1] as CodecLike).toU8a()) === u8aToHex(this.pair.publicKey)
+        u8aToHex((event.data[1] as CodecLike).toU8a()) === this.treasuryKey
       ) {
         const amount = (event.data[2] as { toBigInt(): bigint }).toBigInt()
         paidIn.set(extrinsic, (paidIn.get(extrinsic) ?? 0n) + amount)

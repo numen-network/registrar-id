@@ -40,7 +40,7 @@ async function judgeBlock(height: number): Promise<void> {
       }
     }
 
-    const verdict = decide(read.fields, store.openFor(who), inherited, paid, env.fee)
+    const verdict = decide(read.fields, store.openFor(who), inherited, paid, env.price)
     if (verdict.stamp === null) {
       console.log(`${who} at ${height} left alone, ${verdict.why}`)
       continue

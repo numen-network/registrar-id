@@ -14,7 +14,7 @@ An issuance is one proven sign in for one address. It lives an hour, and one jud
 
 A channel this registrar already stood behind survives a rewrite for free, as long as the handle does not move. That standing is read off the parent block rather than any database, so only a new or moved handle needs a fresh sign in and the payment that goes with it.
 
-One fresh sign in, one price. The payment is a plain transfer to the registrar account, and it has to ride the same extrinsic as the record. The wallet sends `batch_all(set_identity, request_judgement, transfer)` so the whole thing lands together or not at all. The judge counts transfers in that one extrinsic and nowhere else, and leaves a record that paid short alone. Nothing gets vouched for free.
+One fresh sign in, one price. The payment is a plain transfer to the treasury, an account the judge derives from the chain's own pallet id, and it has to ride the same extrinsic as the record. The wallet sends `batch_all(set_identity, request_judgement, transfer)` so the whole thing lands together or not at all. The judge counts transfers in that one extrinsic and nowhere else, and leaves a record that paid short alone. Nothing gets vouched for free.
 
 The judgement request is what makes a record this registrar's business. Without one the judge walks past, whatever the record says.
 

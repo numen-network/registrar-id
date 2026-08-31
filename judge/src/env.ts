@@ -10,5 +10,5 @@ export const env = {
   rpc: need('RPC_URL'),
   dbPath: need('DB_PATH'),
   suri: need('REGISTRAR_SURI'),
-  fee: BigInt(need('REGISTRAR_FEE_NUMN')) * UNIT,
+  price: BigInt(need('CHANNEL_FEE_NUMN')) * UNIT,
 }
