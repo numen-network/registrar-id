@@ -1,4 +1,4 @@
-import { Store } from '@numen-id/shared'
+import { CHANNELS, Store } from '@numen-id/shared'
 import { Chain } from './chain.js'
 import { decide } from './decide.js'
 import { env } from './env.js'
@@ -25,31 +25,39 @@ async function judgeBlock(height: number): Promise<void> {
     const read = await chain.identityAt(blockHash, who)
     if (!read) continue
 
+    // The judgement request riding the same batch is how somebody asks to be
+    // judged. A record that never asked is nobody's business here
+    if (!read.askedBy.includes(chain.index)) continue
+
     // What stood before the write. A channel this registrar already judged
     // there keeps its standing while the handle does not move, free of charge
     const parent = await chain.identityAt(parentHash, who)
     const inherited: Record<string, string> = {}
     if (parent?.checkedBy.includes(chain.index)) {
-      for (const channel of chain.declared) {
+      for (const channel of CHANNELS) {
         const handle = parent.fields[channel]
         if (handle) inherited[channel] = handle
       }
     }
 
-    const verdict = decide(read.fields, store.openFor(who), inherited, chain.declared, paid, env.fee)
-    if (!verdict.judge) {
+    const verdict = decide(read.fields, store.openFor(who), inherited, paid, env.fee)
+    if (verdict.stamp === null) {
       console.log(`${who} at ${height} left alone, ${verdict.why}`)
       continue
     }
 
-    const refusal = await chain.provideJudgement(who, read.hash)
+    const refusal = await chain.provideJudgement(who, read.hash, verdict.stamp)
     if (refusal !== null) {
       console.log(`${who} at ${height} turned down by the chain, ${refusal}`)
       continue
     }
 
-    store.consume(verdict.spend, height)
-    console.log(`${who} judged at ${height}`)
+    if (verdict.stamp === 'Reasonable') {
+      store.consume(verdict.spend, height)
+      console.log(`${who} judged at ${height}`)
+    } else {
+      console.log(`${who} marked ${verdict.stamp} at ${height}, ${verdict.why}`)
+    }
   }
 }
 

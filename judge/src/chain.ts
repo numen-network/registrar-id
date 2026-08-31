@@ -2,13 +2,16 @@ import { ApiPromise, Keyring, WsProvider } from '@polkadot/api'
 import type { KeyringPair } from '@polkadot/keyring/types'
 import { u8aToHex, u8aToString } from '@polkadot/util'
 import { cryptoWaitReady, encodeAddress } from '@polkadot/util-crypto'
-import { declaredFields, SS58_PREFIX } from '@numen-id/shared'
+import { SS58_PREFIX } from '@numen-id/shared'
+import type { Stamp } from './decide.js'
 
 export interface OnChainIdentity {
   fields: Record<string, string>
   hash: string
   /** Registrar indexes standing behind this record with a checked judgement. */
   checkedBy: number[]
+  /** Registrar indexes with a judgement request standing on this record. */
+  askedBy: number[]
 }
 
 /** One identity written in a block, beside what its extrinsic paid this registrar. */
@@ -56,7 +59,6 @@ interface Txs {
       judgement: string,
       identity: string,
     ): Submittable
-    setFields(regIndex: number, fields: bigint): Submittable
   }
 }
 
@@ -80,21 +82,9 @@ interface EventRecordLike {
 
 interface RegistrarLike {
   account: CodecLike
-  fields: { toBigInt(): bigint }
 }
 
-/**
- * IdentityField bits as numen_runtime's identity_info orders them, telegram at
- * eight and discord at nine. Declaring them on chain is how the wallet finds
- * this registrar and what the judgement policy accepts as provable, there is no
- * other marking anywhere.
- */
-const FIELDS = (1n << 8n) | (1n << 9n)
-
 export class Chain {
-  /** What the declaration says this registrar checks, which decide() enforces. */
-  readonly declared = declaredFields(FIELDS)
-
   private constructor(
     private api: ApiPromise,
     private pair: KeyringPair,
@@ -109,11 +99,7 @@ export class Chain {
     }
 
     const pair = new Keyring({ type: 'sr25519' }).addFromUri(suri)
-    const chain = new Chain(api, pair, await Chain.ownIndex(api, pair))
-    await chain.declare().catch((cause: unknown) => {
-      console.error('the declaration did not land, judging anyway', cause)
-    })
-    return chain
+    return new Chain(api, pair, await Chain.ownIndex(api, pair))
   }
 
   private get queries(): Queries {
@@ -141,18 +127,6 @@ export class Chain {
     )
     if (index === -1) throw new Error('the chain does not know this key as a registrar')
     return index
-  }
-
-  /** A note on chain for whoever reads the registrar list. */
-  private async declare(): Promise<void> {
-    const registrars = (await this.queries.identity.registrars()) as OptionLike<RegistrarLike>[]
-    const entry = registrars[this.regIndex]
-    const held = entry?.isSome ? entry.unwrap().fields.toBigInt() : 0n
-    if (held === FIELDS) return
-
-    const refusal = await this.submit(this.txs.identity.setFields(this.regIndex, FIELDS))
-    if (refusal !== null) throw new Error(`the chain refused the fields, ${refusal}`)
-    console.log(`registrar ${this.regIndex} declares ${this.declared.join(' and ')}`)
   }
 
   async tip(): Promise<number> {
@@ -224,17 +198,19 @@ export class Chain {
     }
 
     const checkedBy: number[] = []
+    const askedBy: number[] = []
     for (const [registrar, judgement] of judgements) {
       if (judgement.type === 'Reasonable' || judgement.type === 'KnownGood') {
         checkedBy.push(registrar.toNumber())
       }
+      if (judgement.type === 'FeePaid') askedBy.push(registrar.toNumber())
     }
-    return { fields, hash: this.api.registry.hash(info.toU8a()).toHex(), checkedBy }
+    return { fields, hash: this.api.registry.hash(info.toU8a()).toHex(), checkedBy, askedBy }
   }
 
-  provideJudgement(who: string, infoHash: string): Promise<string | null> {
+  provideJudgement(who: string, infoHash: string, stamp: Stamp): Promise<string | null> {
     return this.submit(
-      this.txs.identity.provideJudgement(this.regIndex, { Id: who }, 'Reasonable', infoHash),
+      this.txs.identity.provideJudgement(this.regIndex, { Id: who }, stamp, infoHash),
     )
   }
 

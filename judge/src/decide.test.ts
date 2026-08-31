@@ -18,7 +18,6 @@ const record = (over: Record<string, string> = {}): Record<string, string> => ({
 
 const open = (id: number, channel: string, handle: string): Open => ({ id, channel, handle })
 
-const DECLARED = ['telegram', 'discord']
 const PRICE = 10n * UNIT
 
 describe('decide', () => {
@@ -27,11 +26,10 @@ describe('decide', () => {
       record({ telegram: 'alice' }),
       [open(1, 'telegram', 'alice')],
       {},
-      DECLARED,
       PRICE,
       PRICE,
     )
-    expect(verdict).toEqual({ judge: true, spend: [1] })
+    expect(verdict).toEqual({ stamp: 'Reasonable', spend: [1] })
   })
 
   it('judges both channels when the transfer covers both', () => {
@@ -39,35 +37,26 @@ describe('decide', () => {
       record({ telegram: 'alice', discord: 'alice_dc' }),
       [open(1, 'telegram', 'alice'), open(2, 'discord', 'alice_dc')],
       {},
-      DECLARED,
       2n * PRICE,
       PRICE,
     )
-    expect(verdict).toEqual({ judge: true, spend: [1, 2] })
+    expect(verdict).toEqual({ stamp: 'Reasonable', spend: [1, 2] })
   })
 
-  it('refuses two channels paid as one', () => {
+  it('leaves two channels paid as one alone', () => {
     const verdict = decide(
       record({ telegram: 'alice', discord: 'alice_dc' }),
       [open(1, 'telegram', 'alice'), open(2, 'discord', 'alice_dc')],
       {},
-      DECLARED,
       PRICE,
       PRICE,
     )
-    expect(verdict).toMatchObject({ judge: false, why: expect.stringContaining('paid') })
+    expect(verdict).toMatchObject({ stamp: null, why: expect.stringContaining('paid') })
   })
 
-  it('refuses a record that paid nothing', () => {
-    const verdict = decide(
-      record({ telegram: 'alice' }),
-      [open(1, 'telegram', 'alice')],
-      {},
-      DECLARED,
-      0n,
-      PRICE,
-    )
-    expect(verdict).toMatchObject({ judge: false, why: expect.stringContaining('paid') })
+  it('leaves a record that paid nothing alone', () => {
+    const verdict = decide(record({ telegram: 'alice' }), [open(1, 'telegram', 'alice')], {}, 0n, PRICE)
+    expect(verdict).toMatchObject({ stamp: null, why: expect.stringContaining('paid') })
   })
 
   it('takes an overpayment without complaint', () => {
@@ -75,66 +64,94 @@ describe('decide', () => {
       record({ telegram: 'alice' }),
       [open(1, 'telegram', 'alice')],
       {},
-      DECLARED,
       3n * PRICE,
       PRICE,
     )
-    expect(verdict).toEqual({ judge: true, spend: [1] })
+    expect(verdict).toEqual({ stamp: 'Reasonable', spend: [1] })
   })
 
-  it('refuses a channel nobody signed in for', () => {
-    const verdict = decide(record({ telegram: 'alice' }), [], {}, DECLARED, PRICE, PRICE)
-    expect(verdict).toMatchObject({ judge: false, why: 'no sign in stands behind telegram' })
+  it('marks a channel nobody signed in for', () => {
+    const verdict = decide(record({ telegram: 'alice' }), [], {}, PRICE, PRICE)
+    expect(verdict).toMatchObject({ stamp: 'Erroneous', why: 'no sign in stands behind telegram' })
   })
 
-  it('refuses a handle that does not match the login', () => {
+  it('marks a handle that does not match the login', () => {
     const verdict = decide(
       record({ telegram: 'somebody_else' }),
       [open(1, 'telegram', 'alice')],
       {},
-      DECLARED,
       PRICE,
       PRICE,
     )
-    expect(verdict).toMatchObject({ judge: false, why: 'no sign in stands behind telegram' })
+    expect(verdict).toMatchObject({ stamp: 'Erroneous', why: 'no sign in stands behind telegram' })
   })
 
-  it('refuses a filled field outside the declaration', () => {
+  it('marks a record that goes by no name', () => {
+    for (const display of ['', '   ', '\u200b']) {
+      const verdict = decide(
+        record({ display, telegram: 'alice' }),
+        [open(1, 'telegram', 'alice')],
+        {},
+        PRICE,
+        PRICE,
+      )
+      expect(verdict).toMatchObject({ stamp: 'Erroneous', why: 'the record goes by no name' })
+    }
+  })
+
+  it('marks a record with no channel at all', () => {
+    const verdict = decide(record(), [open(1, 'telegram', 'alice')], {}, PRICE, PRICE)
+    expect(verdict).toMatchObject({ stamp: 'Erroneous', why: 'no channel on the record' })
+  })
+
+  it('takes an avatar every wallet can render', () => {
+    for (const avatar of [
+      'https://example.com/alice.png',
+      'https://example.com/alice.jpg',
+      'https://example.com/alice.jpeg',
+      'https://example.com/alice.gif',
+      'https://example.com/alice.webp',
+    ]) {
+      const verdict = decide(
+        record({ avatar, telegram: 'alice' }),
+        [open(1, 'telegram', 'alice')],
+        {},
+        PRICE,
+        PRICE,
+      )
+      expect(verdict).toEqual({ stamp: 'Reasonable', spend: [1] })
+    }
+  })
+
+  // The extension has to land at the end, so a query string puts it out of reach
+  it('marks an avatar that shows no picture', () => {
+    for (const avatar of [
+      'http://example.com/alice.png',
+      'example.com/alice.png',
+      'https://example.com/alice',
+      'https://example.com/alice.svg',
+      'https://example.com/alice.png?size=64',
+    ]) {
+      const verdict = decide(
+        record({ avatar, telegram: 'alice' }),
+        [open(1, 'telegram', 'alice')],
+        {},
+        PRICE,
+        PRICE,
+      )
+      expect(verdict).toMatchObject({ stamp: 'Erroneous', why: 'the avatar shows no picture' })
+    }
+  })
+
+  it('takes a record wearing no avatar', () => {
     const verdict = decide(
-      record({ telegram: 'alice', email: 'alice@example.com' }),
+      record({ avatar: '', telegram: 'alice' }),
       [open(1, 'telegram', 'alice')],
       {},
-      DECLARED,
       PRICE,
       PRICE,
     )
-    expect(verdict).toMatchObject({ judge: false, why: expect.stringContaining('email') })
-  })
-
-  it('refuses x while the declaration leaves it out', () => {
-    const verdict = decide(
-      record({ telegram: 'alice', x: '@alice' }),
-      [open(1, 'telegram', 'alice')],
-      {},
-      DECLARED,
-      2n * PRICE,
-      PRICE,
-    )
-    expect(verdict).toMatchObject({ judge: false, why: expect.stringContaining('x') })
-  })
-
-  // The declaration is the policy, so widening it on chain widens what judges
-  // with no code change here
-  it('follows the declaration when it widens', () => {
-    const verdict = decide(
-      record({ x: '@alice' }),
-      [open(1, 'x', '@alice')],
-      {},
-      ['x', 'telegram', 'discord'],
-      PRICE,
-      PRICE,
-    )
-    expect(verdict).toEqual({ judge: true, spend: [1] })
+    expect(verdict).toEqual({ stamp: 'Reasonable', spend: [1] })
   })
 
   it('takes a profile nobody can prove', () => {
@@ -146,30 +163,43 @@ describe('decide', () => {
       }),
       [open(1, 'telegram', 'alice')],
       {},
-      DECLARED,
       PRICE,
       PRICE,
     )
-    expect(verdict).toEqual({ judge: true, spend: [1] })
+    expect(verdict).toEqual({ stamp: 'Reasonable', spend: [1] })
   })
 
-  it('refuses a record that goes by no name', () => {
-    for (const display of ['', '   ', '\u200b']) {
-      const verdict = decide(
-        record({ display, telegram: 'alice' }),
-        [open(1, 'telegram', 'alice')],
-        {},
-        DECLARED,
-        PRICE,
-        PRICE,
-      )
-      expect(verdict).toMatchObject({ judge: false, why: 'the record goes by no name' })
-    }
+  it('marks a field filled past the profile and the channels', () => {
+    const verdict = decide(
+      record({ telegram: 'alice', email: 'alice@example.com' }),
+      [open(1, 'telegram', 'alice')],
+      {},
+      PRICE,
+      PRICE,
+    )
+    expect(verdict).toMatchObject({ stamp: 'Erroneous', why: expect.stringContaining('email') })
   })
 
-  it('refuses a record with no channel at all', () => {
-    const verdict = decide(record(), [open(1, 'telegram', 'alice')], {}, DECLARED, PRICE, PRICE)
-    expect(verdict).toMatchObject({ judge: false, why: 'no channel on the record' })
+  it('marks x, no bot signs into it', () => {
+    const verdict = decide(
+      record({ telegram: 'alice', x: '@alice' }),
+      [open(1, 'telegram', 'alice')],
+      {},
+      PRICE,
+      PRICE,
+    )
+    expect(verdict).toMatchObject({ stamp: 'Erroneous', why: expect.stringContaining('x') })
+  })
+
+  it('calls an unprovable channel out ahead of an unprovable field', () => {
+    const verdict = decide(
+      record({ telegram: 'alice', email: 'alice@example.com' }),
+      [],
+      {},
+      PRICE,
+      PRICE,
+    )
+    expect(verdict).toMatchObject({ stamp: 'Erroneous', why: 'no sign in stands behind telegram' })
   })
 
   it('spends only what the record wears', () => {
@@ -177,23 +207,15 @@ describe('decide', () => {
       record({ discord: 'alice_dc' }),
       [open(1, 'telegram', 'alice'), open(2, 'discord', 'alice_dc')],
       {},
-      DECLARED,
       PRICE,
       PRICE,
     )
-    expect(verdict).toEqual({ judge: true, spend: [2] })
+    expect(verdict).toEqual({ stamp: 'Reasonable', spend: [2] })
   })
 
   it('inherits a channel it already stood behind, free of charge', () => {
-    const verdict = decide(
-      record({ telegram: 'alice' }),
-      [],
-      { telegram: 'alice' },
-      DECLARED,
-      0n,
-      PRICE,
-    )
-    expect(verdict).toEqual({ judge: true, spend: [] })
+    const verdict = decide(record({ telegram: 'alice' }), [], { telegram: 'alice' }, 0n, PRICE)
+    expect(verdict).toEqual({ stamp: 'Reasonable', spend: [] })
   })
 
   it('charges only the fresh channel beside an inherited one', () => {
@@ -201,11 +223,10 @@ describe('decide', () => {
       record({ telegram: 'alice', discord: 'alice_dc' }),
       [open(1, 'discord', 'alice_dc')],
       { telegram: 'alice' },
-      DECLARED,
       PRICE,
       PRICE,
     )
-    expect(verdict).toEqual({ judge: true, spend: [1] })
+    expect(verdict).toEqual({ stamp: 'Reasonable', spend: [1] })
   })
 
   it('treats a moved handle as fresh again', () => {
@@ -213,21 +234,32 @@ describe('decide', () => {
       record({ telegram: 'renamed' }),
       [],
       { telegram: 'alice' },
-      DECLARED,
       PRICE,
       PRICE,
     )
-    expect(stale).toMatchObject({ judge: false, why: 'no sign in stands behind telegram' })
+    expect(stale).toMatchObject({ stamp: 'Erroneous', why: 'no sign in stands behind telegram' })
 
     const proven = decide(
       record({ telegram: 'renamed' }),
       [open(1, 'telegram', 'renamed')],
       { telegram: 'alice' },
-      DECLARED,
       PRICE,
       PRICE,
     )
-    expect(proven).toEqual({ judge: true, spend: [1] })
+    expect(proven).toEqual({ stamp: 'Reasonable', spend: [1] })
+  })
+
+  // Signing in again is the account saying it moved, so the older handle
+  // stops standing the moment a newer proof lands
+  it('lets a fresh sign in speak over the handle it replaces', () => {
+    const verdict = decide(
+      record({ telegram: 'alice' }),
+      [open(1, 'telegram', 'alice_new')],
+      { telegram: 'alice' },
+      0n,
+      PRICE,
+    )
+    expect(verdict).toMatchObject({ stamp: 'Erroneous', why: 'no sign in stands behind telegram' })
   })
 
   it('prefers inheriting over spending when both stand', () => {
@@ -235,11 +267,10 @@ describe('decide', () => {
       record({ telegram: 'alice' }),
       [open(1, 'telegram', 'alice')],
       { telegram: 'alice' },
-      DECLARED,
       0n,
       PRICE,
     )
-    expect(verdict).toEqual({ judge: true, spend: [] })
+    expect(verdict).toEqual({ stamp: 'Reasonable', spend: [] })
   })
 
   it('inheritance stands in for a sign in, not for cleanliness', () => {
@@ -247,10 +278,9 @@ describe('decide', () => {
       record({ telegram: 'alice', email: 'alice@example.com' }),
       [],
       { telegram: 'alice' },
-      DECLARED,
       0n,
       PRICE,
     )
-    expect(verdict).toMatchObject({ judge: false, why: expect.stringContaining('email') })
+    expect(verdict).toMatchObject({ stamp: 'Erroneous', why: expect.stringContaining('email') })
   })
 })

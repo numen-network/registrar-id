@@ -7,16 +7,18 @@ Two programs share one SQLite file and nothing else.
 | dir         | role                                                                                                                                                                                                                                       |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `verifier/` | public web service. Checks OAuth sign ins and writes one time issuances. Holds the bot token and OAuth secrets, never the registrar key                                                                                                    |
-| `judge/`    | private daemon with no inbound port. Walks blocks, matches `IdentitySet` against issuances, the payment riding the same extrinsic, and what it already judged on the parent block, then sends `provide_judgement`. Holds the registrar key |
+| `judge/`    | private daemon with no inbound port. Walks blocks, and for every `IdentitySet` carrying a judgement request for this registrar, weighs the issuances, the payment riding the same extrinsic, and what it already judged on the parent block, then sends `provide_judgement`. Holds the registrar key |
 | `shared/`   | the issuance store and the constants both sides agree on                                                                                                                                                                                   |
 
 An issuance is one proven sign in for one address. It lives an hour, and one judgement spends it.
 
 A channel this registrar already stood behind survives a rewrite for free, as long as the handle does not move. That standing is read off the parent block rather than any database, so only a new or moved handle needs a fresh sign in and the payment that goes with it.
 
-One fresh sign in, one price. The payment is a plain transfer to the registrar account, and it has to ride the same extrinsic as the record. The wallet sends `batch_all(set_identity, transfer)` so the two land together or not at all. The judge counts transfers in that one extrinsic and nowhere else, and leaves a record that paid short alone. Nothing gets vouched for free.
+One fresh sign in, one price. The payment is a plain transfer to the registrar account, and it has to ride the same extrinsic as the record. The wallet sends `batch_all(set_identity, request_judgement, transfer)` so the whole thing lands together or not at all. The judge counts transfers in that one extrinsic and nowhere else, and leaves a record that paid short alone. Nothing gets vouched for free.
 
-The registrar's own on chain field declaration is the whole definition of provable. Fill a field outside it and the record gets nothing.
+The judgement request is what makes a record this registrar's business. Without one the judge walks past, whatever the record says.
+
+A record it does look at gets one of two answers. `Reasonable` for a record that goes by a name, wears an avatar address a wallet can render, puts a sign in behind every channel, and fills nothing past display, avatar, about, telegram and discord. `Erroneous` for one that misses any of those. `Erroneous` survives the account's own rewrites and only this registrar can lift it.
 
 ## Run
 
