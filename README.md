@@ -18,7 +18,7 @@ One fresh sign in, one price. The payment is a plain transfer to the treasury, a
 
 The judgement request is what makes a record this registrar's business. Without one the judge walks past, whatever the record says.
 
-A record it does look at gets one of two answers. `Reasonable` for a record that goes by a name, wears an avatar address a wallet can render, puts a sign in behind every channel, and fills nothing past display, avatar, about, telegram and discord. `Erroneous` for one that misses any of those. `Erroneous` survives the account's own rewrites and only this registrar can lift it.
+A record it does look at gets one of two answers. `Reasonable` for a record that goes by a name, wears an avatar address a wallet can render, puts a sign in behind every channel, and fills nothing past display, avatar, bio, telegram and discord. `Erroneous` for one that misses any of those. `Erroneous` survives the account's own rewrites and only this registrar can lift it.
 
 ## Run
 

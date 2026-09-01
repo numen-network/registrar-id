@@ -5,7 +5,7 @@ import { decide, type Open } from './decide.js'
 const record = (over: Record<string, string> = {}): Record<string, string> => ({
   display: 'Alice',
   avatar: '',
-  about: '',
+  bio: '',
   web: '',
   email: '',
   github: '',
@@ -159,7 +159,7 @@ describe('decide', () => {
       record({
         telegram: 'alice',
         avatar: 'https://example.com/alice.png',
-        about: 'Runs a validator.',
+        bio: 'Runs a validator.',
       }),
       [open(1, 'telegram', 'alice')],
       {},

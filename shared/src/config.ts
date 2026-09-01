@@ -18,4 +18,4 @@ export const isChannel = (value: string): value is Channel =>
  * What an account writes about itself. Nobody can prove any of it, so the
  * judgement policy lets it through unchecked.
  */
-export const PROFILE = ['display', 'avatar', 'about'] as const
+export const PROFILE = ['display', 'avatar', 'bio'] as const
