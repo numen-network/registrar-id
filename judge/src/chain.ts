@@ -149,12 +149,17 @@ export class Chain {
     return index
   }
 
-  async tip(): Promise<number> {
-    return (await this.api.rpc.chain.getHeader()).number.toNumber()
+  /**
+   * The newest finalized height. The judge reads no block past it, since an
+   * unfinalized block can still be replaced and the judge only moves forward.
+   */
+  async finalizedHeight(): Promise<number> {
+    const hash = await this.api.rpc.chain.getFinalizedHead()
+    return (await this.api.rpc.chain.getHeader(hash)).number.toNumber()
   }
 
-  onNewHeight(listener: (height: number) => void): void {
-    void this.api.rpc.chain.subscribeNewHeads((header) => listener(header.number.toNumber()))
+  onFinalized(listener: (height: number) => void): void {
+    void this.api.rpc.chain.subscribeFinalizedHeads((header) => listener(header.number.toNumber()))
   }
 
   /** The slot this key holds, which judgements and inheritance both key on. */
