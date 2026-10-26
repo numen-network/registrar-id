@@ -1,8 +1,10 @@
 import { serve } from '@hono/node-server'
+import { cryptoWaitReady } from '@polkadot/util-crypto'
 import { Hono } from 'hono'
 import { refused, Store, verified } from '@numen-id/shared'
 import { authorizeUrl, discordHandle } from './discord.js'
 import { env } from './env.js'
+import { checkOwner } from './owner.js'
 import { donePage, telegramPage } from './pages.js'
 import { Refusal } from './refusal.js'
 import { openState, sealState } from './state.js'
@@ -17,19 +19,30 @@ app.get('/verify', (c) => {
   const provider = c.req.query('provider')
   const address = c.req.query('address') ?? ''
   if (!ADDRESS.test(address)) return c.text('There is no address to verify for', 400)
+  if (provider !== 'telegram' && provider !== 'discord') return c.text('Unknown provider', 400)
 
-  if (provider === 'telegram') return c.html(telegramPage(env.botName, address, env.walletOrigin))
-  if (provider === 'discord') {
-    return c.redirect(
-      authorizeUrl(env.discordId, env.discordRedirect, sealState(address, env.stateSecret)),
-    )
+  const at = c.req.query('at') ?? ''
+  const sig = c.req.query('sig') ?? ''
+  try {
+    checkOwner(address, provider, at, sig)
+  } catch (problem) {
+    if (problem instanceof Refusal) return c.text(problem.message, 400)
+    throw problem
   }
-  return c.text('Unknown provider', 400)
+
+  if (provider === 'telegram') {
+    return c.html(telegramPage(env.botName, address, at, sig, env.walletOrigin))
+  }
+  return c.redirect(
+    authorizeUrl(env.discordId, env.discordRedirect, sealState(address, env.stateSecret)),
+  )
 })
 
 app.post('/api/telegram', async (c) => {
   const body = (await c.req.json().catch(() => null)) as {
     address?: unknown
+    at?: unknown
+    sig?: unknown
     auth?: unknown
   } | null
   const address = typeof body?.address === 'string' ? body.address : ''
@@ -38,6 +51,12 @@ app.post('/api/telegram', async (c) => {
   }
 
   try {
+    checkOwner(
+      address,
+      'telegram',
+      typeof body.at === 'string' ? body.at : '',
+      typeof body.sig === 'string' ? body.sig : '',
+    )
     const handle = telegramHandle(body.auth as Record<string, unknown>, env.botToken)
     return c.json(verified(address, 'telegram', handle, store.issue(address, 'telegram', handle)))
   } catch (problem) {
@@ -74,6 +93,7 @@ app.get('/callback/discord', async (c) => {
   }
 })
 
+await cryptoWaitReady()
 serve({ fetch: app.fetch, port: env.port }, (bound) => {
   console.log(`verifier listening on ${bound.port}`)
 })

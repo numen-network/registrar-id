@@ -30,18 +30,29 @@ ${body}
  * Neither page closes itself. The wallet closes the window once it has read the
  * reply, and a window that closes in the same breath as its postMessage races
  * the reader, which then finds a dead window where the message should be.
+ *
+ * The wallet's signature for the address rides along to the login endpoint,
+ * which checks it again rather than trusting that this page was the caller.
  */
-export const telegramPage = (botName: string, address: string, walletOrigin: string): string =>
+export const telegramPage = (
+  botName: string,
+  address: string,
+  at: string,
+  sig: string,
+  walletOrigin: string,
+): string =>
   shell(`<p>Sign in to prove a Telegram handle for</p>
 <code>${text(address)}</code>
 <p id="word"></p>
 <script>
   const ADDRESS = ${js(address)}
+  const AT = ${js(at)}
+  const SIG = ${js(sig)}
   function onTelegramAuth(auth) {
     fetch('/api/telegram', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ address: ADDRESS, auth }),
+      body: JSON.stringify({ address: ADDRESS, at: AT, sig: SIG, auth }),
     })
       .then((response) => response.json())
       .then((reply) => {

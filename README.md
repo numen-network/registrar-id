@@ -1,12 +1,12 @@
 # Automatic ID registrar
 
-The identity service behind `id.numen-network.org`. The wallet opens it in a popup, the user signs in with Telegram or Discord to prove a handle, and a registrar judgement lands on chain once the paid `set_identity` does.
+The identity service behind `id.numen-network.org`. The wallet signs for the address with the account's own key and opens the service in a popup, the user signs in with Telegram or Discord to prove a handle, and a registrar judgement lands on chain once the paid `set_identity` does. Without that signature the service opens no sign in, so an issuance can only ever land on an address the wallet holds.
 
 Two programs share one SQLite file and nothing else.
 
 | dir         | role                                                                                                                                                                                                                                                                             |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `verifier/` | public web service. Checks OAuth sign ins and writes one time issuances. Holds the bot token and OAuth secrets, never the registrar key                                                                                                                                          |
+| `verifier/` | public web service. Checks the wallet's signature for the address, then the OAuth sign in, and writes one time issuances. Holds the bot token and OAuth secrets, never the registrar key                                                                                        |
 | `judge/`    | private daemon with no inbound port. Walks blocks, and for every judgement request aimed at this registrar, weighs the issuances, the payment riding the same extrinsic, and what it already judged on the parent block, then sends `provide_judgement`. Holds the registrar key |
 | `shared/`   | the issuance store and the constants both sides agree on                                                                                                                                                                                                                         |
 

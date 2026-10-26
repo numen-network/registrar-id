@@ -54,9 +54,19 @@ importers:
       '@numen-id/shared':
         specifier: workspace:*
         version: link:../shared
+      '@polkadot/util':
+        specifier: ^14.0.3
+        version: 14.0.3
+      '@polkadot/util-crypto':
+        specifier: ^14.0.3
+        version: 14.0.3(@polkadot/util@14.0.3)
       hono:
         specifier: ^4.13.2
         version: 4.13.2
+    devDependencies:
+      '@polkadot/keyring':
+        specifier: ^14.0.3
+        version: 14.0.3(@polkadot/util-crypto@14.0.3(@polkadot/util@14.0.3))(@polkadot/util@14.0.3)
 
 packages:
 

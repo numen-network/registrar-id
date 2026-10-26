@@ -8,6 +8,11 @@
   "dependencies": {
     "@hono/node-server": "^1.19.0",
     "@numen-id/shared": "workspace:*",
+    "@polkadot/util": "^14.0.3",
+    "@polkadot/util-crypto": "^14.0.3",
     "hono": "^4.13.2"
+  },
+  "devDependencies": {
+    "@polkadot/keyring": "^14.0.3"
   }
 }
