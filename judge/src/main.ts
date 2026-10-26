@@ -22,7 +22,7 @@ setInterval(() => store.prune(judgedUpTo), 3_600_000).unref()
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-console.log(`judging from block ${store.cursor()} toward ${finalized}`)
+console.log(`judging from block ${(store.cursor() ?? finalized) + 1} toward ${finalized}`)
 
 while (true) {
   const cursor = store.cursor() ?? finalized
