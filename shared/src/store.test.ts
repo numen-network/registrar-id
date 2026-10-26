@@ -46,6 +46,13 @@ describe('issuance', () => {
     ])
   })
 
+  it('is not open before it was issued', () => {
+    const store = new Store(':memory:')
+    store.issue(ADDR, 'telegram', '@alice', NOW)
+
+    expect(store.openFor(ADDR, NOW - 1)).toEqual([])
+  })
+
   it('keeps issuances apart per address', () => {
     const store = new Store(':memory:')
     store.issue(ADDR, 'telegram', '@alice', NOW)

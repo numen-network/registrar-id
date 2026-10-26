@@ -1,7 +1,7 @@
-import { CHANNELS, Store } from '@numen-id/shared'
+import { Store } from '@numen-id/shared'
 import { Chain } from './chain.js'
-import { decide } from './decide.js'
 import { env } from './env.js'
+import { judgeBlock } from './judge.js'
 
 const store = new Store(env.dbPath)
 const chain = await Chain.connect(env.rpc, env.suri)
@@ -15,51 +15,12 @@ chain.onNewHeight((height) => {
 // is not its business
 if (store.cursor() === null) store.advance(tip)
 
-setInterval(() => store.prune(), 3_600_000).unref()
+// How far the judge has got, in chain time. A sign in that ran out before then
+// can back no block still to come
+let judgedUpTo = 0
+setInterval(() => store.prune(judgedUpTo), 3_600_000).unref()
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-async function judgeBlock(height: number): Promise<void> {
-  const { blockHash, parentHash, sets } = await chain.setsIn(height)
-  for (const { who, paid } of sets) {
-    const read = await chain.identityAt(blockHash, who)
-    if (!read) continue
-
-    // The judgement request riding the same batch is how somebody asks to be
-    // judged. A record that never asked is nobody's business here
-    if (!read.askedBy.includes(chain.index)) continue
-
-    // What stood before the write. A channel this registrar already judged
-    // there keeps its standing while the handle does not move, free of charge
-    const parent = await chain.identityAt(parentHash, who)
-    const inherited: Record<string, string> = {}
-    if (parent?.checkedBy.includes(chain.index)) {
-      for (const channel of CHANNELS) {
-        const handle = parent.fields[channel]
-        if (handle) inherited[channel] = handle
-      }
-    }
-
-    const verdict = decide(read.fields, store.openFor(who), inherited, paid, env.price)
-    if (verdict.stamp === null) {
-      console.log(`${who} at ${height} left alone, ${verdict.why}`)
-      continue
-    }
-
-    const refusal = await chain.provideJudgement(who, read.hash, verdict.stamp)
-    if (refusal !== null) {
-      console.log(`${who} at ${height} turned down by the chain, ${refusal}`)
-      continue
-    }
-
-    if (verdict.stamp === 'Reasonable') {
-      store.consume(verdict.spend, height)
-      console.log(`${who} judged at ${height}`)
-    } else {
-      console.log(`${who} marked ${verdict.stamp} at ${height}, ${verdict.why}`)
-    }
-  }
-}
 
 console.log(`judging from block ${store.cursor()} toward ${tip}`)
 
@@ -72,7 +33,7 @@ while (true) {
 
   const height = cursor + 1
   try {
-    await judgeBlock(height)
+    judgedUpTo = await judgeBlock(chain, store, env.price, height)
     store.advance(height)
   } catch (problem) {
     console.error(`block ${height} failed, trying again`, problem)

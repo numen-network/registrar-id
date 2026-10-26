@@ -61,9 +61,9 @@ export class Store {
   openFor(address: string, now = Date.now()): Issuance[] {
     return this.db
       .prepare(
-        'SELECT id, address, channel, handle, expires_at AS expiresAt FROM issuance WHERE address = ? AND consumed_at IS NULL AND expires_at > ?',
+        'SELECT id, address, channel, handle, expires_at AS expiresAt FROM issuance WHERE address = ? AND consumed_at IS NULL AND issued_at <= ? AND expires_at > ?',
       )
-      .all(address, now) as Issuance[]
+      .all(address, now, now) as Issuance[]
   }
 
   consume(ids: number[], block: number, now = Date.now()): void {

@@ -30,6 +30,7 @@ interface Consts {
 
 interface Queries {
   system: { events(): Promise<unknown> }
+  timestamp: { now(): Promise<unknown> }
   identity: {
     identityOf(who: string): Promise<unknown>
     registrars(): Promise<unknown>
@@ -163,17 +164,19 @@ export class Chain {
 
   /**
    * Who set an identity in this block, beside what the same extrinsic moved to
-   * the treasury. Same extrinsic is the whole binding, a transfer anywhere else
-   * pays for nothing. The parent hash comes off this very header, so what stood
-   * before the write is read from the same fork.
+   * the treasury, and the time the block carries. Same extrinsic is the whole
+   * binding, a transfer anywhere else pays for nothing. The parent hash comes
+   * off this very header, so what stood before the write is read from the same
+   * fork.
    */
   async setsIn(
     height: number,
-  ): Promise<{ blockHash: string; parentHash: string; sets: SetIdentity[] }> {
+  ): Promise<{ blockHash: string; parentHash: string; time: number; sets: SetIdentity[] }> {
     const blockHash = (await this.api.rpc.chain.getBlockHash(height)).toHex()
     const parentHash = (await this.api.rpc.chain.getHeader(blockHash)).parentHash.toHex()
     const at = await this.queriesAt(blockHash)
     const records = (await at.system.events()) as EventRecordLike[]
+    const time = ((await at.timestamp.now()) as { toNumber(): number }).toNumber()
 
     const setBy = new Map<number, string>()
     const paidIn = new Map<number, bigint>()
@@ -198,7 +201,7 @@ export class Chain {
     for (const [extrinsic, who] of setBy) {
       sets.set(who, (sets.get(who) ?? 0n) + (paidIn.get(extrinsic) ?? 0n))
     }
-    return { blockHash, parentHash, sets: [...sets].map(([who, paid]) => ({ who, paid })) }
+    return { blockHash, parentHash, time, sets: [...sets].map(([who, paid]) => ({ who, paid })) }
   }
 
   /** The identity as that block held it, readable and hashed the runtime's way. */
