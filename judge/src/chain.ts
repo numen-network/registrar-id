@@ -14,8 +14,8 @@ export interface OnChainIdentity {
   askedBy: number[]
 }
 
-/** One identity written in a block, beside what its extrinsic paid the treasury. */
-export interface SetIdentity {
+/** One request for this registrar's judgement, beside what its extrinsic paid the treasury. */
+export interface JudgementRequest {
   who: string
   paid: bigint
 }
@@ -168,29 +168,33 @@ export class Chain {
   }
 
   /**
-   * Who set an identity in this block, beside what the same extrinsic moved to
-   * the treasury, and the time the block carries. Same extrinsic is the whole
-   * binding, a transfer anywhere else pays for nothing. The parent hash comes
-   * off this very header, so what stood before the write is read from the same
-   * fork.
+   * Who asked this registrar for a judgement in this block, beside what the
+   * same extrinsic moved to the treasury, and the time the block carries. Same
+   * extrinsic is the whole binding, a transfer anywhere else pays for nothing.
+   * The parent hash comes off this very header, so what stood before the
+   * request is read from the same fork.
    */
-  async setsIn(
+  async requestsIn(
     height: number,
-  ): Promise<{ blockHash: string; parentHash: string; time: number; sets: SetIdentity[] }> {
+  ): Promise<{ blockHash: string; parentHash: string; time: number; requests: JudgementRequest[] }> {
     const blockHash = (await this.api.rpc.chain.getBlockHash(height)).toHex()
     const parentHash = (await this.api.rpc.chain.getHeader(blockHash)).parentHash.toHex()
     const at = await this.queriesAt(blockHash)
     const records = (await at.system.events()) as EventRecordLike[]
     const time = ((await at.timestamp.now()) as { toNumber(): number }).toNumber()
 
-    const setBy = new Map<number, string>()
+    const requesterOf = new Map<number, string>()
     const paidIn = new Map<number, bigint>()
     for (const { phase, event } of records) {
       if (!phase.isApplyExtrinsic) continue
       const extrinsic = phase.asApplyExtrinsic.toNumber()
 
-      if (event.section === 'identity' && event.method === 'IdentitySet') {
-        setBy.set(extrinsic, encodeAddress((event.data[0] as CodecLike).toU8a(), SS58_PREFIX))
+      if (
+        event.section === 'identity' &&
+        event.method === 'JudgementRequested' &&
+        (event.data[1] as { toNumber(): number }).toNumber() === this.regIndex
+      ) {
+        requesterOf.set(extrinsic, encodeAddress((event.data[0] as CodecLike).toU8a(), SS58_PREFIX))
       }
       if (
         event.section === 'balances' &&
@@ -202,11 +206,11 @@ export class Chain {
       }
     }
 
-    const sets = new Map<string, bigint>()
-    for (const [extrinsic, who] of setBy) {
-      sets.set(who, (sets.get(who) ?? 0n) + (paidIn.get(extrinsic) ?? 0n))
+    const requests = new Map<string, bigint>()
+    for (const [extrinsic, who] of requesterOf) {
+      requests.set(who, (requests.get(who) ?? 0n) + (paidIn.get(extrinsic) ?? 0n))
     }
-    return { blockHash, parentHash, time, sets: [...sets].map(([who, paid]) => ({ who, paid })) }
+    return { blockHash, parentHash, time, requests: [...requests].map(([who, paid]) => ({ who, paid })) }
   }
 
   /** The identity as that block held it, readable and hashed the runtime's way. */

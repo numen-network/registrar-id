@@ -4,11 +4,11 @@ The identity service behind `id.numen-network.org`. The wallet opens it in a pop
 
 Two programs share one SQLite file and nothing else.
 
-| dir         | role                                                                                                                                                                                                                                       |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `verifier/` | public web service. Checks OAuth sign ins and writes one time issuances. Holds the bot token and OAuth secrets, never the registrar key                                                                                                    |
-| `judge/`    | private daemon with no inbound port. Walks blocks, and for every `IdentitySet` carrying a judgement request for this registrar, weighs the issuances, the payment riding the same extrinsic, and what it already judged on the parent block, then sends `provide_judgement`. Holds the registrar key |
-| `shared/`   | the issuance store and the constants both sides agree on                                                                                                                                                                                   |
+| dir         | role                                                                                                                                                                                                                                                                             |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `verifier/` | public web service. Checks OAuth sign ins and writes one time issuances. Holds the bot token and OAuth secrets, never the registrar key                                                                                                                                          |
+| `judge/`    | private daemon with no inbound port. Walks blocks, and for every judgement request aimed at this registrar, weighs the issuances, the payment riding the same extrinsic, and what it already judged on the parent block, then sends `provide_judgement`. Holds the registrar key |
+| `shared/`   | the issuance store and the constants both sides agree on                                                                                                                                                                                                                         |
 
 An issuance is one proven sign in for one address. It lives an hour, and one judgement spends it.
 
@@ -16,7 +16,7 @@ A channel this registrar already stood behind survives a rewrite for free, as lo
 
 One fresh sign in, one price. The payment is a plain transfer to the treasury, an account the judge derives from the chain's own pallet id, and it has to ride the same extrinsic as the record. The wallet sends `batch_all(set_identity, request_judgement, transfer)` so the whole thing lands together or not at all. The judge counts transfers in that one extrinsic and nowhere else, and leaves a record that paid short alone. Nothing gets vouched for free.
 
-The judgement request is what makes a record this registrar's business. Without one the judge walks past, whatever the record says.
+The judgement request is what makes a record this registrar's business, whether it rides the batch that writes the record or comes on its own later. Without one the judge walks past, whatever the record says.
 
 A record it does look at gets one of two answers. `Reasonable` for a record that goes by a name, wears an avatar address a wallet can render, puts a sign in behind every channel, and fills nothing past display, avatar, bio, telegram and discord. `Erroneous` for one that misses any of those. `Erroneous` survives the account's own rewrites and only this registrar can lift it.
 

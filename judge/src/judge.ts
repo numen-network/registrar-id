@@ -3,24 +3,24 @@ import type { Chain } from './chain.js'
 import { decide } from './decide.js'
 
 /**
- * Judges each record written in one block that asks this registrar for a
- * judgement, and returns the time the block carries. A sign in counts if it
- * stood at that time, so a judge catching up after a stop answers the way it
- * would have on the spot.
+ * Judges each record whose owner asked this registrar for a judgement in one
+ * block, and returns the time the block carries. A sign in counts if it stood
+ * at that time, so a judge catching up after a stop answers the way it would
+ * have on the spot.
  */
 export async function judgeBlock(
-  chain: Pick<Chain, 'index' | 'setsIn' | 'identityAt' | 'provideJudgement'>,
+  chain: Pick<Chain, 'index' | 'requestsIn' | 'identityAt' | 'provideJudgement'>,
   store: Store,
   price: bigint,
   height: number,
 ): Promise<number> {
-  const { blockHash, parentHash, time, sets } = await chain.setsIn(height)
-  for (const { who, paid } of sets) {
+  const { blockHash, parentHash, time, requests } = await chain.requestsIn(height)
+  for (const { who, paid } of requests) {
     const read = await chain.identityAt(blockHash, who)
     if (!read) continue
 
-    // The judgement request riding the same batch is how somebody asks to be
-    // judged. A record that never asked is nobody's business here
+    // The record is read off the block's end, so a request withdrawn later in
+    // the same block leaves nothing to answer
     if (!read.askedBy.includes(chain.index)) continue
 
     // What stood before the write. A channel this registrar already judged

@@ -13,7 +13,7 @@ function blockAt(time: number) {
   const stamps: Stamp[] = []
   const chain = {
     index: 0,
-    setsIn: async () => ({ blockHash: '0xb', parentHash: '0xa', time, sets: [{ who: ALICE, paid: PRICE }] }),
+    requestsIn: async () => ({ blockHash: '0xb', parentHash: '0xa', time, requests: [{ who: ALICE, paid: PRICE }] }),
     identityAt: async (blockHash: string) =>
       blockHash === '0xb'
         ? { fields: { display: 'Alice', telegram: 'alice' }, hash: '0x1d', checkedBy: [], askedBy: [0] }
