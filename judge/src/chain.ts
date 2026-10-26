@@ -248,15 +248,20 @@ export class Chain {
   /**
    * Resolves null once the call is in a block, resolves the chain's words when
    * it refused, and throws when the send itself went wrong and a retry makes
-   * sense.
+   * sense. It throws on a dropped connection too. polkadot-js doesn't renew
+   * author_ subscriptions on reconnect, so the watch would wait forever.
    */
   private submit(tx: Submittable): Promise<string | null> {
     return new Promise((resolve, reject) => {
       let stop: (() => void) | undefined
       const settle = (outcome: () => void) => {
+        this.api.off('disconnected', dropped)
         outcome()
         stop?.()
       }
+      const dropped = () =>
+        settle(() => reject(new Error('the connection dropped before the chain answered')))
+      this.api.once('disconnected', dropped)
 
       tx.signAndSend(this.pair, { nonce: -1 }, (result) => {
         const error = result.dispatchError
@@ -277,7 +282,7 @@ export class Chain {
         .then((unsub) => {
           stop = unsub
         })
-        .catch(reject)
+        .catch((problem: unknown) => settle(() => reject(problem)))
     })
   }
 }
