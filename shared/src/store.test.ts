@@ -7,6 +7,7 @@ import { ISSUANCE_TTL_MS } from './config.js'
 import { Store } from './store.js'
 
 const NOW = 1_700_000_000_000
+const BLOCK = 42
 const ADDR = 'nuTestAddress'
 
 describe('issuance', () => {
@@ -15,7 +16,7 @@ describe('issuance', () => {
     const expiresAt = store.issue(ADDR, 'telegram', '@alice', NOW)
 
     expect(expiresAt).toBe(NOW + ISSUANCE_TTL_MS)
-    expect(store.openFor(ADDR, NOW)).toMatchObject([
+    expect(store.openFor(ADDR, BLOCK, NOW)).toMatchObject([
       { address: ADDR, channel: 'telegram', handle: '@alice', expiresAt },
     ])
   })
@@ -24,17 +25,27 @@ describe('issuance', () => {
     const store = new Store(':memory:')
     store.issue(ADDR, 'telegram', '@alice', NOW)
 
-    expect(store.openFor(ADDR, NOW + ISSUANCE_TTL_MS)).toEqual([])
+    expect(store.openFor(ADDR, BLOCK, NOW + ISSUANCE_TTL_MS)).toEqual([])
   })
 
-  it('is gone once consumed', () => {
+  it('is gone for later blocks once consumed', () => {
     const store = new Store(':memory:')
     store.issue(ADDR, 'telegram', '@alice', NOW)
-    const [open] = store.openFor(ADDR, NOW)
+    const [open] = store.openFor(ADDR, BLOCK, NOW)
 
-    store.consume([open!.id], 42, NOW)
+    store.consume([open!.id], BLOCK, NOW)
 
-    expect(store.openFor(ADDR, NOW)).toEqual([])
+    expect(store.openFor(ADDR, BLOCK + 1, NOW)).toEqual([])
+  })
+
+  it('stays open to the block that consumed it', () => {
+    const store = new Store(':memory:')
+    store.issue(ADDR, 'telegram', '@alice', NOW)
+    const [open] = store.openFor(ADDR, BLOCK, NOW)
+
+    store.consume([open!.id], BLOCK, NOW)
+
+    expect(store.openFor(ADDR, BLOCK, NOW)).toMatchObject([{ handle: '@alice' }])
   })
 
   it('keeps every login per channel', () => {
@@ -43,7 +54,7 @@ describe('issuance', () => {
     store.issue(ADDR, 'telegram', '@renamed', NOW + 1)
     store.issue(ADDR, 'discord', 'alice', NOW + 2)
 
-    const open = store.openFor(ADDR, NOW + 2)
+    const open = store.openFor(ADDR, BLOCK, NOW + 2)
     expect(open.map((entry) => [entry.channel, entry.handle])).toEqual([
       ['telegram', '@alice'],
       ['telegram', '@renamed'],
@@ -55,7 +66,7 @@ describe('issuance', () => {
     const store = new Store(':memory:')
     store.issue(ADDR, 'telegram', '@alice', NOW)
 
-    expect(store.openFor(ADDR, NOW - 1)).toEqual([])
+    expect(store.openFor(ADDR, BLOCK, NOW - 1)).toEqual([])
   })
 
   it('keeps issuances apart per address', () => {
@@ -63,7 +74,7 @@ describe('issuance', () => {
     store.issue(ADDR, 'telegram', '@alice', NOW)
     store.issue('nuOther', 'telegram', '@bob', NOW)
 
-    expect(store.openFor(ADDR, NOW)).toMatchObject([{ handle: '@alice' }])
+    expect(store.openFor(ADDR, BLOCK, NOW)).toMatchObject([{ handle: '@alice' }])
   })
 
   it('prunes expired open rows and keeps spent ones', () => {
@@ -71,8 +82,8 @@ describe('issuance', () => {
     const store = new Store(path)
     store.issue(ADDR, 'telegram', '@alice', NOW)
     store.issue(ADDR, 'discord', 'alice', NOW)
-    const [spent] = store.openFor(ADDR, NOW)
-    store.consume([spent!.id], 42, NOW)
+    const [spent] = store.openFor(ADDR, BLOCK, NOW)
+    store.consume([spent!.id], BLOCK, NOW)
 
     store.prune(NOW + ISSUANCE_TTL_MS)
 
@@ -86,7 +97,7 @@ describe('issuance', () => {
 
     store.prune(NOW + ISSUANCE_TTL_MS - 1)
 
-    expect(store.openFor(ADDR, NOW)).toMatchObject([{ handle: '@alice' }])
+    expect(store.openFor(ADDR, BLOCK, NOW)).toMatchObject([{ handle: '@alice' }])
   })
 })
 

@@ -34,7 +34,7 @@ export async function judgeBlock(
       }
     }
 
-    const verdict = decide(read.fields, store.openFor(who, time), inherited, paid, price)
+    const verdict = decide(read.fields, store.openFor(who, height, time), inherited, paid, price)
     if (verdict.stamp === null) {
       console.log(`${who} at ${height} left alone, ${verdict.why}`)
       continue

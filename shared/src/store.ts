@@ -52,12 +52,16 @@ export class Store {
     return expiresAt
   }
 
-  openFor(address: string, now = Date.now()): Issuance[] {
+  /**
+   * The issuances a judgement in `block` can spend at `now`. Those `block`
+   * already spent still count, so judging it again answers the same.
+   */
+  openFor(address: string, block: number, now: number): Issuance[] {
     return this.db
       .prepare(
-        'SELECT id, address, channel, handle, expires_at AS expiresAt FROM issuance WHERE address = ? AND consumed_at IS NULL AND issued_at <= ? AND expires_at > ?',
+        'SELECT id, address, channel, handle, expires_at AS expiresAt FROM issuance WHERE address = ? AND (consumed_at IS NULL OR consumed_block = ?) AND issued_at <= ? AND expires_at > ?',
       )
-      .all(address, now, now) as Issuance[]
+      .all(address, block, now, now) as Issuance[]
   }
 
   consume(ids: number[], block: number, now = Date.now()): void {
