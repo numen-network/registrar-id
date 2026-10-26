@@ -42,19 +42,13 @@ export class Store {
     this.db.exec(SCHEMA)
   }
 
-  /** A fresh login replaces whatever open issuance the channel already had. */
   issue(address: string, channel: Channel, handle: string, now = Date.now()): number {
     const expiresAt = now + ISSUANCE_TTL_MS
-    this.db.transaction(() => {
-      this.db
-        .prepare('DELETE FROM issuance WHERE address = ? AND channel = ? AND consumed_at IS NULL')
-        .run(address, channel)
-      this.db
-        .prepare(
-          'INSERT INTO issuance (address, channel, handle, issued_at, expires_at) VALUES (?, ?, ?, ?, ?)',
-        )
-        .run(address, channel, handle, now, expiresAt)
-    })()
+    this.db
+      .prepare(
+        'INSERT INTO issuance (address, channel, handle, issued_at, expires_at) VALUES (?, ?, ?, ?, ?)',
+      )
+      .run(address, channel, handle, now, expiresAt)
     return expiresAt
   }
 

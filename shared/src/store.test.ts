@@ -1,3 +1,7 @@
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import { ISSUANCE_TTL_MS } from './config.js'
 import { Store } from './store.js'
@@ -6,7 +10,7 @@ const NOW = 1_700_000_000_000
 const ADDR = 'nuTestAddress'
 
 describe('issuance', () => {
-  it('opens for 24 hours from issue', () => {
+  it('opens for an hour from issue', () => {
     const store = new Store(':memory:')
     const expiresAt = store.issue(ADDR, 'telegram', '@alice', NOW)
 
@@ -33,7 +37,7 @@ describe('issuance', () => {
     expect(store.openFor(ADDR, NOW)).toEqual([])
   })
 
-  it('keeps only the latest login per channel', () => {
+  it('keeps every login per channel', () => {
     const store = new Store(':memory:')
     store.issue(ADDR, 'telegram', '@alice', NOW)
     store.issue(ADDR, 'telegram', '@renamed', NOW + 1)
@@ -41,6 +45,7 @@ describe('issuance', () => {
 
     const open = store.openFor(ADDR, NOW + 2)
     expect(open.map((entry) => [entry.channel, entry.handle])).toEqual([
+      ['telegram', '@alice'],
       ['telegram', '@renamed'],
       ['discord', 'alice'],
     ])
@@ -61,14 +66,27 @@ describe('issuance', () => {
     expect(store.openFor(ADDR, NOW)).toMatchObject([{ handle: '@alice' }])
   })
 
-  it('prunes expired open rows', () => {
-    const store = new Store(':memory:')
+  it('prunes expired open rows and keeps spent ones', () => {
+    const path = join(mkdtempSync(join(tmpdir(), 'numen-id-')), 'store.db')
+    const store = new Store(path)
     store.issue(ADDR, 'telegram', '@alice', NOW)
+    store.issue(ADDR, 'discord', 'alice', NOW)
+    const [spent] = store.openFor(ADDR, NOW)
+    store.consume([spent!.id], 42, NOW)
 
     store.prune(NOW + ISSUANCE_TTL_MS)
 
-    // Read back at issue time, where an unpruned row would still show
-    expect(store.openFor(ADDR, NOW)).toEqual([])
+    const rows = new Database(path).prepare('SELECT COUNT(*) AS n FROM issuance').get()
+    expect(rows).toEqual({ n: 1 })
+  })
+
+  it('keeps rows still live at prune time', () => {
+    const store = new Store(':memory:')
+    store.issue(ADDR, 'telegram', '@alice', NOW)
+
+    store.prune(NOW + ISSUANCE_TTL_MS - 1)
+
+    expect(store.openFor(ADDR, NOW)).toMatchObject([{ handle: '@alice' }])
   })
 })
 

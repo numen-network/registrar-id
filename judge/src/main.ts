@@ -18,7 +18,7 @@ if (store.cursor() === null) store.advance(finalized)
 // How far the judge has got, in chain time. A sign in that ran out before then
 // can back no block still to come
 let judgedUpTo = 0
-setInterval(() => store.prune(judgedUpTo), 3_600_000).unref()
+setInterval(() => store.prune(judgedUpTo), 60_000).unref()
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 

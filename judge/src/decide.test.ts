@@ -249,9 +249,7 @@ describe('decide', () => {
     expect(proven).toEqual({ stamp: 'Reasonable', spend: [1] })
   })
 
-  // Signing in again is the account saying it moved, so the older handle
-  // stops standing the moment a newer proof lands
-  it('lets a fresh sign in speak over the handle it replaces', () => {
+  it('keeps an inherited handle standing beside a later sign in', () => {
     const verdict = decide(
       record({ telegram: 'alice' }),
       [open(1, 'telegram', 'alice_new')],
@@ -259,7 +257,18 @@ describe('decide', () => {
       0n,
       PRICE,
     )
-    expect(verdict).toMatchObject({ stamp: 'Erroneous', why: 'no sign in stands behind telegram' })
+    expect(verdict).toEqual({ stamp: 'Reasonable', spend: [] })
+  })
+
+  it('takes an older sign in when a newer one names another handle', () => {
+    const verdict = decide(
+      record({ telegram: 'alice' }),
+      [open(1, 'telegram', 'alice'), open(2, 'telegram', 'bob')],
+      {},
+      PRICE,
+      PRICE,
+    )
+    expect(verdict).toEqual({ stamp: 'Reasonable', spend: [1] })
   })
 
   it('prefers inheriting over spending when both stand', () => {

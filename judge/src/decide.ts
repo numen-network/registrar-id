@@ -25,8 +25,8 @@ const ALLOWED = new Set<string>([...PROFILE, ...CHANNELS])
 
 /**
  * The whole judgement policy. Erroneous goes on a record that has no name,
- * wears an avatar address no wallet can render, claims a channel the newest
- * proof does not back, or fills anything past the profile and the two channels.
+ * wears an avatar address no wallet can render, claims a channel with no sign
+ * in behind it, or fills anything past the profile and the two channels.
  * A channel this registrar already stood behind rides free. A handle that
  * moved needs the transfer to cover it. Short payment is the one thing left
  * alone rather than argued with, since it means the wallet and the judge
@@ -53,20 +53,12 @@ export function decide(
   )
   if (wanted.length === 0) return { stamp: 'Erroneous', why: 'no channel on the record' }
 
-  // What this registrar stood behind before the write, with a live sign in
-  // speaking over it. The store keeps one open issuance per channel, so the
-  // newest proof is the only one a channel gets to answer with
-  const stands: Record<string, { handle: string; id?: number }> = {}
-  for (const [channel, handle] of Object.entries(inherited)) stands[channel] = { handle }
-  for (const entry of open) stands[entry.channel] = { handle: entry.handle, id: entry.id }
-
   const spend: number[] = []
   for (const { channel, handle } of wanted) {
-    const proof = stands[channel]
-    if (proof?.handle !== handle) {
-      return { stamp: 'Erroneous', why: `no sign in stands behind ${channel}` }
-    }
-    if (proof.id !== undefined && inherited[channel] !== handle) spend.push(proof.id)
+    if (inherited[channel] === handle) continue
+    const proof = open.find((entry) => entry.channel === channel && entry.handle === handle)
+    if (!proof) return { stamp: 'Erroneous', why: `no sign in stands behind ${channel}` }
+    spend.push(proof.id)
   }
 
   for (const [name, text] of Object.entries(info)) {
