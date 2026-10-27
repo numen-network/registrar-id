@@ -1,7 +1,3 @@
-import { mkdtempSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import { ISSUANCE_TTL_MS } from './config.js'
 import { Store } from './store.js'
@@ -73,29 +69,6 @@ describe('issuance', () => {
     const store = new Store(':memory:')
     store.issue(ADDR, 'telegram', '@alice', NOW)
     store.issue('nuOther', 'telegram', '@bob', NOW)
-
-    expect(store.openFor(ADDR, BLOCK, NOW)).toMatchObject([{ handle: '@alice' }])
-  })
-
-  it('prunes expired open rows and keeps spent ones', () => {
-    const path = join(mkdtempSync(join(tmpdir(), 'numen-id-')), 'store.db')
-    const store = new Store(path)
-    store.issue(ADDR, 'telegram', '@alice', NOW)
-    store.issue(ADDR, 'discord', 'alice', NOW)
-    const [spent] = store.openFor(ADDR, BLOCK, NOW)
-    store.consume([spent!.id], BLOCK, NOW)
-
-    store.prune(NOW + ISSUANCE_TTL_MS)
-
-    const rows = new Database(path).prepare('SELECT COUNT(*) AS n FROM issuance').get()
-    expect(rows).toEqual({ n: 1 })
-  })
-
-  it('keeps rows still live at prune time', () => {
-    const store = new Store(':memory:')
-    store.issue(ADDR, 'telegram', '@alice', NOW)
-
-    store.prune(NOW + ISSUANCE_TTL_MS - 1)
 
     expect(store.openFor(ADDR, BLOCK, NOW)).toMatchObject([{ handle: '@alice' }])
   })

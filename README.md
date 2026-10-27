@@ -10,7 +10,7 @@ Two programs share one SQLite file and nothing else.
 | `judge/`    | private daemon with no inbound port. Walks blocks, and for every judgement request aimed at this registrar, weighs the issuances, the payment riding the same extrinsic, and what it already judged on the parent block, then sends `provide_judgement`. Holds the registrar key |
 | `shared/`   | the issuance store and the constants both sides agree on                                                                                                                                                                                                                         |
 
-An issuance is one proven sign in for one address. It lives an hour and one judgement spends it. A fresh sign in leaves the earlier ones standing. An unspent issuance is deleted when its hour runs out, while a spent one stays on as the audit trail.
+An issuance is one proven sign in for one address. It lives an hour and one judgement spends it. A fresh sign in leaves the earlier ones standing. Every issuance stays on as the audit trail, spent or not.
 
 A channel this registrar already stood behind survives a rewrite for free, as long as the handle does not move. That standing is read off the parent block rather than any database, so only a new or moved handle needs a fresh sign in and the payment that goes with it.
 

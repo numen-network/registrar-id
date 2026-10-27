@@ -48,7 +48,7 @@ describe('judgeBlock', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(SIGNED_IN + 2 * HOUR)
 
-    expect(await judgeBlock(chain, store, PRICE, 100)).toBe(SIGNED_IN + HOUR / 6)
+    await judgeBlock(chain, store, PRICE, 100)
     expect(stamps).toEqual([[ALICE, 'Reasonable']])
   })
 

@@ -4,16 +4,15 @@ import { decide } from './decide.js'
 
 /**
  * Judges each record whose owner asked this registrar for a judgement in one
- * block, and returns the time the block carries. A sign in counts if it stood
- * at that time, so a judge catching up after a stop answers the way it would
- * have on the spot.
+ * block. A sign in counts if it stood at the time the block carries, so a
+ * judge catching up after a stop answers the way it would have on the spot.
  */
 export async function judgeBlock(
   chain: Pick<Chain, 'index' | 'requestsIn' | 'identityAt' | 'provideJudgement'>,
   store: Store,
   price: bigint,
   height: number,
-): Promise<number> {
+): Promise<void> {
   const { blockHash, parentHash, time, requests } = await chain.requestsIn(height)
   for (const { who, paid } of requests) {
     const read = await chain.identityAt(blockHash, who)
@@ -53,5 +52,4 @@ export async function judgeBlock(
       console.log(`${who} marked ${verdict.stamp} at ${height}, ${verdict.why}`)
     }
   }
-  return time
 }

@@ -73,11 +73,6 @@ export class Store {
     })()
   }
 
-  /** Expired open issuances are dead weight, spent ones stay as the audit trail. */
-  prune(now = Date.now()): void {
-    this.db.prepare('DELETE FROM issuance WHERE consumed_at IS NULL AND expires_at <= ?').run(now)
-  }
-
   cursor(): number | null {
     const row = this.db.prepare('SELECT height FROM cursor WHERE id = 1').get() as
       | { height: number }

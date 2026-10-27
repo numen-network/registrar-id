@@ -15,11 +15,6 @@ chain.onFinalized((height) => {
 // service existed is not its business
 if (store.cursor() === null) store.advance(finalized)
 
-// How far the judge has got, in chain time. A sign in that ran out before then
-// can back no block still to come
-let judgedUpTo = 0
-setInterval(() => store.prune(judgedUpTo), 60_000).unref()
-
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 console.log(`judging from block ${(store.cursor() ?? finalized) + 1} toward ${finalized}`)
@@ -33,7 +28,7 @@ while (true) {
 
   const height = cursor + 1
   try {
-    judgedUpTo = await judgeBlock(chain, store, env.price, height)
+    await judgeBlock(chain, store, env.price, height)
     store.advance(height)
   } catch (problem) {
     console.error(`block ${height} failed, trying again`, problem)
