@@ -20,19 +20,28 @@ The judgement request is what makes a record this registrar's business, whether 
 
 A record it does look at gets one of two answers. `Reasonable` for a record that goes by a name, wears an avatar address a wallet can render, puts a sign in behind every channel, and fills nothing past display, avatar, bio, telegram and discord. `Erroneous` for one that misses any of those. `Erroneous` survives the account's own rewrites. Only clearing the identity or a new judgement from this registrar lifts it.
 
+## Requirements
+
+- Node 24+ and pnpm
+- A C++ toolchain for `better-sqlite3` when no prebuild matches your Node
+- An archive node, for state at every block since genesis
+- A registrar key added on chain via `add_registrar`. Without it the judge exits at startup with `the chain does not know this key as a registrar`
+- One Telegram bot per network, its login domain set to that network's verifier host
+- A Discord OAuth app redirecting to the verifier's `/callback/discord`
+
 ## Run
 
-```
+1. Create a Telegram bot with [@BotFather](https://t.me/BotFather) using `/newbot`, then point `/setdomain` at the verifier's host. Its username without the `@` and its token go into `verifier/.env` as `TELEGRAM_BOT_NAME` and `TELEGRAM_BOT_TOKEN`.
+2. Create an app in the [Discord Developer Portal](https://discord.com/developers/applications) and add `https://<verifier host>/callback/discord` under OAuth2 redirects. The client ID, the client secret and that URL go into `verifier/.env` as `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` and `DISCORD_REDIRECT_URI`.
+3. Copy `verifier/.env.example` to `verifier/.env` and `judge/.env.example` to `judge/.env`, fill in the rest of both files.
+
+```bash
 pnpm install
 pnpm build
 pnpm test
 node --env-file=verifier/.env verifier/dist/main.js
 node --env-file=judge/.env judge/dist/main.js
 ```
-
-`better-sqlite3` compiles from source whenever no prebuild matches the Node version, so the host needs a C++ toolchain.
-
-The chain has to know that key as a registrar before any of this runs. Until an `add_registrar` puts it there, the judge exits at startup with `the chain does not know this key as a registrar`.
 
 ### Run it as a service
 
@@ -68,7 +77,7 @@ Type=exec
 WorkingDirectory=/opt/registrar-id
 ExecStart=/usr/bin/node --env-file=/opt/registrar-id/judge.env /opt/registrar-id/judge/dist/main.js
 Restart=always
-RestartSec=10s
+RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target
@@ -78,8 +87,5 @@ WantedBy=multi-user.target
 
 ```bash
 git pull && pnpm install --frozen-lockfile && pnpm build
+systemctl restart numen-id-verifier numen-id-judge
 ```
-
-Restart both services afterwards. Anything under `shared/` reaches both of them, so restarting one leaves the other on old code. The judge resumes from its cursor and loses nothing.
-
-A newly required variable announces itself at startup as `missing NAME in the environment`.
