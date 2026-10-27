@@ -1,7 +1,7 @@
 import { createHash, createHmac } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { Refusal } from './refusal.js'
-import { telegramHandle } from './telegram.js'
+import { SpentLogins, telegramLogin } from './telegram.js'
 
 const TOKEN = '123456:TEST-TOKEN'
 const NOW = 1_700_000_000_000
@@ -24,30 +24,65 @@ const signed = (over: Record<string, unknown> = {}) => {
   return { ...fields, hash: createHmac('sha256', secret).update(lines).digest('hex') }
 }
 
-describe('telegramHandle', () => {
+describe('telegramLogin', () => {
   it('hands back the bare username of a valid login', () => {
-    expect(telegramHandle(signed(), TOKEN, NOW)).toBe('alice')
+    expect(telegramLogin(signed(), TOKEN, NOW).handle).toBe('alice')
   })
 
   it('refuses a payload doctored after signing', () => {
     const auth = { ...signed(), username: 'somebody_else' }
-    expect(() => telegramHandle(auth, TOKEN, NOW)).toThrow(Refusal)
+    expect(() => telegramLogin(auth, TOKEN, NOW)).toThrow(Refusal)
   })
 
   it('refuses a signature from some other bot', () => {
-    expect(() => telegramHandle(signed(), 'other:TOKEN', NOW)).toThrow('does not check out')
+    expect(() => telegramLogin(signed(), 'other:TOKEN', NOW)).toThrow('does not check out')
   })
 
   it('refuses a login with no signature at all', () => {
     const { hash: _, ...bare } = signed()
-    expect(() => telegramHandle(bare, TOKEN, NOW)).toThrow('no signature')
+    expect(() => telegramLogin(bare, TOKEN, NOW)).toThrow('no signature')
   })
 
   it('refuses a login older than ten minutes', () => {
-    expect(() => telegramHandle(signed(), TOKEN, NOW + 11 * 60 * 1000)).toThrow('too old')
+    expect(() => telegramLogin(signed(), TOKEN, NOW + 11 * 60 * 1000)).toThrow('too old')
   })
 
   it('refuses an account that never set a username', () => {
-    expect(() => telegramHandle(signed({ username: undefined }), TOKEN, NOW)).toThrow('no username')
+    expect(() => telegramLogin(signed({ username: undefined }), TOKEN, NOW)).toThrow('no username')
+  })
+})
+
+describe('SpentLogins', () => {
+  const login = () => telegramLogin(signed(), TOKEN, NOW)
+  const issuer = () => {
+    let issued = 0
+    return { issue: () => NOW + ++issued, count: () => issued }
+  }
+
+  it('answers a login sent twice for one address with the first issuance', () => {
+    const logins = new SpentLogins()
+    const { issue, count } = issuer()
+
+    const first = logins.spend(login(), 'nuAlice', issue, NOW)
+    expect(logins.spend(login(), 'nuAlice', issue, NOW)).toBe(first)
+    expect(count()).toBe(1)
+  })
+
+  it('refuses a login replayed onto another address', () => {
+    const logins = new SpentLogins()
+    const { issue, count } = issuer()
+
+    logins.spend(login(), 'nuAlice', issue, NOW)
+    expect(() => logins.spend(login(), 'nuMallory', issue, NOW)).toThrow('another address')
+    expect(count()).toBe(1)
+  })
+
+  it('remembers a login for as long as it passes as fresh', () => {
+    const logins = new SpentLogins()
+    const { issue } = issuer()
+    const { until } = login()
+
+    logins.spend(login(), 'nuAlice', issue, NOW)
+    expect(() => logins.spend(login(), 'nuMallory', issue, until)).toThrow('another address')
   })
 })

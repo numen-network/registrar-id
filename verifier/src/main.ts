@@ -8,11 +8,12 @@ import { checkOwner } from './owner.js'
 import { donePage, telegramPage } from './pages.js'
 import { Refusal } from './refusal.js'
 import { openState, sealState } from './state.js'
-import { telegramHandle } from './telegram.js'
+import { SpentLogins, telegramLogin } from './telegram.js'
 
 const ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{40,64}$/
 
 const store = new Store(env.dbPath)
+const logins = new SpentLogins()
 const app = new Hono()
 
 app.get('/verify', (c) => {
@@ -57,8 +58,11 @@ app.post('/api/telegram', async (c) => {
       typeof body.at === 'string' ? body.at : '',
       typeof body.sig === 'string' ? body.sig : '',
     )
-    const handle = telegramHandle(body.auth as Record<string, unknown>, env.botToken)
-    return c.json(verified(address, 'telegram', handle, store.issue(address, 'telegram', handle)))
+    const login = telegramLogin(body.auth as Record<string, unknown>, env.botToken)
+    const expiresAt = logins.spend(login, address, () =>
+      store.issue(address, 'telegram', login.handle),
+    )
+    return c.json(verified(address, 'telegram', login.handle, expiresAt))
   } catch (problem) {
     if (problem instanceof Refusal) return c.json(refused(address, problem.message))
     throw problem
